@@ -365,8 +365,10 @@ export class WikiEngine {
 
   async listSourceIds(): Promise<string[]> {
     try {
-      const files = await fs.readdir(this.rawDir);
-      return files;
+      const entries = await fs.readdir(this.rawDir, { withFileTypes: true });
+      return entries
+        .filter((e) => e.isDirectory() && !e.name.startsWith("."))
+        .map((e) => e.name);
     } catch {
       return [];
     }

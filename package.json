@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "build": "npm run build -w shared && npm run build -w mcp-server && npm run build -w web-ui",
-    "dev": "npm run dev -w mcp-server",
+    "dev": "npm run build -w shared && npm run build -w mcp-server && npm start -w mcp-server & npm run dev -w web-ui",
     "start": "npm run start -w mcp-server"
   },
   "dependencies": {

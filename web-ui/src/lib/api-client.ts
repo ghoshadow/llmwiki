@@ -11,7 +11,7 @@ import type {
   WikiLog,
   WikiStats,
   SearchResult,
-  SourceFile,
+  Source,
   LintIssue,
   Backlink,
 } from "@llmwiki/shared";
@@ -135,7 +135,7 @@ export const apiClient = {
   // Sources
   listSources: (status?: string) => {
     const qs = status ? `?status=${status}` : "";
-    return request<SourceFile[]>(`/api/v1/sources${qs}`);
+    return request<Source[]>(`/api/v1/sources${qs}`);
   },
 
   // Lint

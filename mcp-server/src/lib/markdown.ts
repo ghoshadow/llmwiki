@@ -3,6 +3,7 @@ import matter from "gray-matter";
 import type { WikiPage, Wikilink } from "@llmwiki/shared";
 
 const WIKILINK_RE = /\[\[([^\]|#]+?)(?:[|#]([^\]]+?))?\]\]/g;
+const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g;
 
 /**
  * Parse a markdown file into a WikiPage (frontmatter + content).
@@ -47,10 +48,12 @@ export function serializeMarkdown(page: WikiPage): string {
 
 /**
  * Extract all [[wikilinks]] from markdown content.
+ * HTML comments are stripped before extraction.
  */
 export function extractWikilinks(content: string): Wikilink[] {
   const links: Wikilink[] = [];
-  const lines = content.split("\n");
+  const cleaned = content.replace(HTML_COMMENT_RE, "");
+  const lines = cleaned.split("\n");
   for (let i = 0; i < lines.length; i++) {
     let match: RegExpExecArray | null;
     const re = new RegExp(WIKILINK_RE.source, "g");
