@@ -339,7 +339,7 @@ const PORT = process.env.PORT || 3000;
 
 // Health
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok", version: "0.1.0" });
+  res.json({ success: true, data: { status: "ok", version: "0.1.0" } });
 });
 
 // Execute any tool via POST /api/:toolName
