@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "llmwiki": {
+      "command": "node",
+      "args": ["mcp-server/dist/index.js"],
+      "env": {
+        "WIKI_DIR": "wiki",
+        "RAW_DIR": "raw",
+        "INDEX_FILE": "index.md",
+        "LOG_FILE": "log.md"
+      }
+    }
+  }
+}

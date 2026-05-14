@@ -1,213 +1,112 @@
-/**
- * markdown.ts - frontmatter + wikilink 解析
- *
- * 提供 Obsidian 兼容的 frontmatter (YAML) 与 wikilink ([[target|alias]]) 解析能力。
- */
+import fs from "node:fs/promises";
+import matter from "gray-matter";
+import type { WikiPage, Wikilink } from "@llmwiki/shared";
 
-import type { WikiFrontmatter, WikiLink } from '@llmwiki/shared';
-
-// ============================================================================
-// Frontmatter 解析
-// ============================================================================
-
-const FM_DELIM = '---';
+const WIKILINK_RE = /\[\[([^\]|#]+?)(?:[|#]([^\]]+?))?\]\]/g;
 
 /**
- * 简单的 YAML frontmatter 标量解析。
- * 仅处理: 字符串、字符串数组、单层键值对。
- * 不依赖外部 YAML 库以保持零依赖。
+ * Parse a markdown file into a WikiPage (frontmatter + content).
  */
-function parseYamlScalar(raw: string): unknown {
-  const trimmed = raw.trim();
-
-  // 数组: [a, b, c] 或换行列表
-  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-    const inner = trimmed.slice(1, -1);
-    if (inner.trim() === '') return [];
-    return inner.split(',').map((s) => s.trim().replace(/^['"](.*)['"]$/, '$1'));
-  }
-
-  // 换行列表 (以 - 开头)
-  if (trimmed.startsWith('- ')) {
-    return trimmed
-      .split('\n')
-      .map((line) => line.replace(/^-\s*/, '').trim())
-      .filter((s) => s.length > 0)
-      .map((s) => s.replace(/^['"](.*)['"]$/, '$1'));
-  }
-
-  // 带引号的字符串
-  const quoted = trimmed.match(/^['"](.*)['"]$/);
-  if (quoted) return quoted[1];
-
-  // 布尔值
-  if (trimmed === 'true') return true;
-  if (trimmed === 'false') return false;
-
-  // 数字
-  const num = Number(trimmed);
-  if (!Number.isNaN(num) && trimmed !== '') return num;
-
-  return trimmed;
+export function parseMarkdown(raw: string, slug: string): WikiPage {
+  const { data, content } = matter(raw);
+  return {
+    meta: {
+      title: (data.title as string) || slug,
+      slug,
+      created: (data.created as string) || new Date().toISOString(),
+      updated: (data.updated as string) || new Date().toISOString(),
+      tags: normalizeTags(data.tags),
+      status: normalizeStatus(data.status),
+      sourceUrl: data.sourceUrl as string | undefined,
+      sourceHash: data.sourceHash as string | undefined,
+    },
+    content: content.trim(),
+    rawFrontmatter: data,
+  };
 }
 
 /**
- * 从原始 markdown 文本中提取 frontmatter 与正文。
- * 若无 frontmatter,则返回空的 frontmatter 对象。
+ * Serialize a WikiPage back to markdown with frontmatter.
  */
-export function parseFrontmatter(raw: string): {
-  frontmatter: WikiFrontmatter;
-  body: string;
-} {
-  if (!raw.startsWith(FM_DELIM + '\n') && !raw.startsWith(FM_DELIM + '\r\n')) {
-    return { frontmatter: { title: '' }, body: raw };
+export function serializeMarkdown(page: WikiPage): string {
+  const fm: Record<string, unknown> = {
+    title: page.meta.title,
+    slug: page.meta.slug,
+    created: page.meta.created,
+    updated: page.meta.updated,
+    tags: page.meta.tags,
+    status: page.meta.status,
+  };
+  if (page.meta.sourceUrl) fm.sourceUrl = page.meta.sourceUrl;
+  if (page.meta.sourceHash) fm.sourceHash = page.meta.sourceHash;
+  for (const [k, v] of Object.entries(page.rawFrontmatter)) {
+    if (!(k in fm)) fm[k] = v;
   }
-
-  const endIdx = raw.indexOf('\n' + FM_DELIM, 4);
-  if (endIdx === -1) {
-    // 只有开分隔符,视为无效,全部作正文
-    return { frontmatter: { title: '' }, body: raw };
-  }
-
-  const fmBlock = raw.slice(4, endIdx);
-  const body = raw.slice(endIdx + 5).trimStart();
-
-  const frontmatter: WikiFrontmatter = { title: '' };
-  const lines = fmBlock.split('\n');
-
-  let currentKey: string | null = null;
-  let currentValue = '';
-
-  for (const line of lines) {
-    // 多行数组延续
-    if (currentKey && /^\s{2,}-\s/.test(line)) {
-      currentValue += '\n' + line;
-      continue;
-    }
-
-    // 提交之前的键
-    if (currentKey) {
-      (frontmatter as Record<string, unknown>)[currentKey] = parseYamlScalar(currentValue);
-      currentKey = null;
-      currentValue = '';
-    }
-
-    const match = line.match(/^([a-zA-Z_][a-zA-Z0-9_]*):\s?(.*)/);
-    if (match) {
-      const [, key, value] = match;
-      if (value.trim() === '') {
-        // 可能为多行值
-        currentKey = key;
-        currentValue = '';
-      } else {
-        (frontmatter as Record<string, unknown>)[key] = parseYamlScalar(value);
-      }
-    }
-  }
-
-  // 提交最后一个键
-  if (currentKey) {
-    (frontmatter as Record<string, unknown>)[currentKey] = parseYamlScalar(currentValue);
-  }
-
-  return { frontmatter, body };
+  return matter.stringify(page.content, fm);
 }
 
 /**
- * 将 WikiFrontmatter 序列化为 YAML frontmatter 字符串 (含分隔符)。
+ * Extract all [[wikilinks]] from markdown content.
  */
-export function stringifyFrontmatter(fm: WikiFrontmatter): string {
-  const lines: string[] = [FM_DELIM];
-
-  for (const [key, value] of Object.entries(fm)) {
-    if (value === undefined || value === null) continue;
-
-    if (Array.isArray(value)) {
-      if (value.length === 0) {
-        lines.push(`${key}: []`);
-      } else {
-        lines.push(`${key}:`);
-        for (const item of value) {
-          lines.push(`  - ${String(item)}`);
-        }
-      }
-    } else if (typeof value === 'string') {
-      // 包含特殊字符时加引号
-      if (/[:"{}[\]&*#?|>!%@`,\s]/.test(value) || value === '') {
-        lines.push(`${key}: "${value.replace(/"/g, '\\"')}"`);
-      } else {
-        lines.push(`${key}: ${value}`);
-      }
-    } else if (typeof value === 'boolean') {
-      lines.push(`${key}: ${value}`);
-    } else if (typeof value === 'number') {
-      lines.push(`${key}: ${value}`);
+export function extractWikilinks(content: string): Wikilink[] {
+  const links: Wikilink[] = [];
+  const lines = content.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    let match: RegExpExecArray | null;
+    const re = new RegExp(WIKILINK_RE.source, "g");
+    while ((match = re.exec(lines[i])) !== null) {
+      links.push({
+        target: match[1].trim(),
+        alias: match[2]?.trim(),
+        line: i + 1,
+        column: match.index + 1,
+      });
     }
   }
-
-  lines.push(FM_DELIM);
-  return lines.join('\n');
-}
-
-// ============================================================================
-// Wikilink 解析
-// ============================================================================
-
-const WIKILINK_RE = /\[\[([^\]|#]+?)(?:[|#]([^\]]+))?\]\]/g;
-
-/**
- * 从文本中提取所有 wikilink。
- * 支持两种语法:
- *   - [[target]]       简单引用
- *   - [[target|alias]] 带显示别名
- *
- * 注意: resolved / resolvedSlug 字段由调用方填充,此处仅标记为未解析。
- */
-export function parseWikiLinks(text: string): WikiLink[] {
-  const links: WikiLink[] = [];
-  let match: RegExpExecArray | null;
-
-  // 重置正则
-  WIKILINK_RE.lastIndex = 0;
-
-  while ((match = WIKILINK_RE.exec(text)) !== null) {
-    const target = match[1]!.trim();
-    const alias = match[2]?.trim();
-
-    links.push({
-      target,
-      alias: alias || undefined,
-      start: match.index,
-      end: match.index + match[0].length,
-      resolved: false,
-    });
-  }
-
   return links;
 }
 
-/** 安全版本的 parseWikiLinks,捕获异常并返回空数组。 */
-export function parseWikiLinksSafe(text: string): WikiLink[] {
+/**
+ * Read a page from disk by slug.
+ */
+export async function readPageFile(slug: string, wikiDir: string): Promise<WikiPage | null> {
+  const filePath = `${wikiDir}/${slug}.md`;
   try {
-    return parseWikiLinks(text);
+    const raw = await fs.readFile(filePath, "utf-8");
+    return parseMarkdown(raw, slug);
   } catch {
-    return [];
+    return null;
   }
 }
 
 /**
- * 解析完整 Wiki 页面的原始内容,同时提取 frontmatter 与 wikilink。
+ * Write a page to disk.
  */
-export function parseWikiPage(
-  raw: string,
-  slug: string,
-  filePath: string,
-): {
-  frontmatter: WikiFrontmatter;
-  body: string;
-  links: WikiLink[];
-} {
-  const { frontmatter, body } = parseFrontmatter(raw);
-  const links = parseWikiLinks(body);
-  return { frontmatter, body, links };
+export async function writePageFile(page: WikiPage, wikiDir: string): Promise<void> {
+  const md = serializeMarkdown(page);
+  await fs.mkdir(wikiDir, { recursive: true });
+  await fs.writeFile(`${wikiDir}/${page.meta.slug}.md`, md, "utf-8");
+}
+
+/**
+ * Delete a page from disk.
+ */
+export async function deletePageFile(slug: string, wikiDir: string): Promise<boolean> {
+  try {
+    await fs.unlink(`${wikiDir}/${slug}.md`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function normalizeTags(tags: unknown): string[] {
+  if (Array.isArray(tags)) return tags.map(String);
+  if (typeof tags === "string") return tags.split(",").map((t) => t.trim()).filter(Boolean);
+  return [];
+}
+
+function normalizeStatus(status: unknown): "draft" | "published" | "archived" {
+  if (status === "published" || status === "archived") return status;
+  return "draft";
 }

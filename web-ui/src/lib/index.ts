@@ -1,0 +1,28 @@
+export {
+  createClaudeSession,
+  createClaudeSessionConfig,
+  sendSSE,
+  messageToSSE,
+  serializeSSE,
+  getWikiToolDefinitions,
+  spawnMCPServer,
+  buildIngestPrompt,
+  buildIngestSystemPrompt,
+  buildQueryPrompt,
+  buildQuerySystemPrompt,
+  buildLintPrompt,
+  buildLintSystemPrompt,
+} from "./claude-sdk.js";
+export type {
+  ClaudeSession,
+  ClaudeSessionOptions,
+  ClaudeSessionConfig,
+  SSEChunk,
+  IngestRequest,
+  IngestResult,
+  QueryRequest,
+  QueryResult,
+  LintRequest,
+  LintResult,
+  ProgressCallback,
+} from "./claude-sdk.js";

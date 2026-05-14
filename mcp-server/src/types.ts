@@ -1,7 +1,5 @@
 /**
- * MCP Server 内部类型 + PATHS 常量 (占位)
- *
- * Phase 1 脚手架阶段:仅保留导出占位,实际实现见后续阶段。
+ * MCP Server 内部类型 + PATHS 常量
  */
 
 import path from 'node:path';
@@ -23,3 +21,27 @@ export const PATHS = {
   indexFile: path.join(REPO_ROOT, 'index.md'),
   logFile: path.join(REPO_ROOT, 'log.md'),
 } as const;
+
+/** MCP 工具返回结构 */
+export interface ToolSuccess<T> {
+  success: true;
+  data: T;
+}
+
+export interface ToolError {
+  success: false;
+  error: string;
+}
+
+export type ToolResult<T> = ToolSuccess<T> | ToolError;
+
+/** MCP 工具定义 */
+export interface ToolDef {
+  name: string;
+  description: string;
+  inputSchema: {
+    type: "object";
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
+}
