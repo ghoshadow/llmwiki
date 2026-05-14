@@ -1,35 +1,64 @@
 /**
  * REST API Client — LLM Wiki
  *
- * 封装对 MCP Server REST API 的 HTTP 调用。
- * LLMWI-11: 已创建完整 API 客户端。
+ * Encapsulates HTTP calls to the MCP Server REST API.
  */
 
 import type {
   WikiPage,
   WikiPageSummary,
   WikiIndex,
+  IndexTree,
   WikiLog,
   WikiStats,
   SearchResult,
-  Source,
+  SourceFile,
   LintIssue,
   Backlink,
-  ApiResponse,
-  PaginatedResponse,
 } from "@llmwiki/shared";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
+/** Server API response shape: { success, data?, error? } */
+interface ServerResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
+/** Panel-compatible response format used by UI components */
+interface PanelResponse<T> {
+  ok: boolean;
+  data: T;
+  latency: number | null;
+  error: string | null;
+}
+
 async function request<T>(
   path: string,
   options?: RequestInit
-): Promise<ApiResponse<T>> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  return res.json();
+): Promise<PanelResponse<T>> {
+  const start = performance.now();
+  try {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      headers: { "Content-Type": "application/json" },
+      ...options,
+    });
+    const json = await res.json() as ServerResponse<T>;
+    return {
+      ok: json.success === true,
+      data: json.data as T,
+      latency: Math.round(performance.now() - start),
+      error: json.error || null,
+    };
+  } catch {
+    return {
+      ok: false,
+      data: [] as unknown as T,
+      latency: Math.round(performance.now() - start),
+      error: "Network error",
+    };
+  }
 }
 
 export const apiClient = {
@@ -107,7 +136,7 @@ export const apiClient = {
   // Sources
   listSources: (status?: string) => {
     const qs = status ? `?status=${status}` : "";
-    return request<Source[]>(`/api/v1/sources${qs}`);
+    return request<SourceFile[]>(`/api/v1/sources${qs}`);
   },
 
   // Lint
@@ -118,4 +147,30 @@ export const apiClient = {
   findBrokenLinks: () => request<{ slug: string; brokenLinks: string[] }[]>(
     "/api/v1/lint/broken-links"
   ),
+};
+
+// Named exports for panel components
+export const pagesApi = {
+  list: apiClient.listPages,
+  get: apiClient.getPage,
+  create: apiClient.createPage,
+  update: apiClient.updatePage,
+  delete: apiClient.deletePage,
+};
+
+export const indexApi = {
+  get: () => apiClient.getIndex(),
+  tree: () => request<IndexTree>("/api/v1/index?tree=true"),
+};
+
+export const logApi = {
+  list: (limit?: number) => apiClient.getLog(limit),
+};
+
+export const sourcesApi = {
+  list: apiClient.listSources,
+};
+
+export const healthApi = {
+  ping: () => request<{ status: string; version: string }>("/health"),
 };

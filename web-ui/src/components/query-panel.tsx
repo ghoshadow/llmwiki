@@ -7,10 +7,10 @@ import ExecutionLog from './execution-log';
 import type { ExecutionStatus } from './execution-log';
 
 const SEARCH_KINDS: { value: SearchKind; label: string }[] = [
-  { value: 'text', label: '全文搜索' },
-  { value: 'tag', label: '标签搜索' },
-  { value: 'slug', label: 'Slug 搜索' },
-  { value: 'frontmatter', label: 'Frontmatter 搜索' },
+  { value: 'text', label: 'Full Text' },
+  { value: 'tag', label: 'Tag' },
+  { value: 'slug', label: 'Slug' },
+  { value: 'frontmatter', label: 'Frontmatter' },
 ];
 
 export default function QueryPanel() {
@@ -22,7 +22,6 @@ export default function QueryPanel() {
 
   const handleQuery = async () => {
     if (!query.trim()) return;
-
     setStatus('running');
     setLogs([]);
     setResults([]);
@@ -42,7 +41,7 @@ export default function QueryPanel() {
 
       const reader = response.body?.getReader();
       if (!reader) {
-        setLogs(['无法读取响应流']);
+        setLogs(['Cannot read response stream']);
         setStatus('error');
         return;
       }
@@ -73,7 +72,6 @@ export default function QueryPanel() {
         }
       }
 
-      // Process remaining buffer
       if (buffer.startsWith('data: ')) {
         try {
           const data = JSON.parse(buffer.slice(6));
@@ -88,23 +86,22 @@ export default function QueryPanel() {
 
       setStatus('done');
     } catch (err) {
-      setLogs((prev) => [...prev, `Error: ${err instanceof Error ? err.message : '网络错误'}`]);
+      setLogs((prev) => [...prev, `Error: ${err instanceof Error ? err.message : 'Network error'}`]);
       setStatus('error');
     }
   };
 
   return (
     <div className="space-y-4">
-      {/* 搜索表单 */}
       <div className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
-        <h3 className="font-semibold">AI 智能搜索</h3>
+        <h3 className="font-semibold">AI Smart Search</h3>
         <div className="mt-3 flex gap-2">
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleQuery()}
-            placeholder="输入搜索关键词..."
+            placeholder="Enter search keywords..."
             className="flex-1 rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
           <select
@@ -124,28 +121,22 @@ export default function QueryPanel() {
             className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Search className="size-4" />
-            搜索
+            Search
           </button>
         </div>
       </div>
 
-      {/* 搜索结果 */}
       {results.length > 0 && (
         <div className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
-          <h3 className="font-semibold">搜索结果 ({results.length})</h3>
+          <h3 className="font-semibold">Results ({results.length})</h3>
           <div className="mt-3 space-y-2">
             {results.map((result, i) => (
-              <div
-                key={`${result.slug}-${i}`}
-                className="rounded-md border bg-background p-3"
-              >
+              <div key={`${result.slug}-${i}`} className="rounded-md border bg-background p-3">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium">{result.title}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {result.slug}
-                  </span>
+                  <span className="text-xs text-muted-foreground">{result.slug}</span>
                   <span className="ml-auto text-xs text-muted-foreground">
-                    得分: {result.score.toFixed(2)}
+                    Relevance: {result.relevance.toFixed(2)}
                   </span>
                 </div>
                 {result.snippet && (
@@ -159,7 +150,6 @@ export default function QueryPanel() {
         </div>
       )}
 
-      {/* 执行日志 */}
       <ExecutionLog lines={logs} status={status} />
     </div>
   );

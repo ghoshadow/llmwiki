@@ -11,5 +11,13 @@
     "build": "npm run build -w shared && npm run build -w mcp-server && npm run build -w web-ui",
     "dev": "npm run dev -w mcp-server",
     "start": "npm run start -w mcp-server"
+  },
+  "dependencies": {
+    "@radix-ui/react-scroll-area": "^1.2.10",
+    "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-tabs": "^1.1.13",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.6.0"
   }
 }

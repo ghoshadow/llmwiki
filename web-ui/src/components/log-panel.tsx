@@ -27,7 +27,7 @@ export default function LogPanel() {
     const result = await logApi.list();
     setLoading(false);
     if (result.ok) {
-      setEntries(result.data);
+      setEntries(result.data.entries || []);
     } else {
       setError(result.error);
     }
@@ -92,13 +92,13 @@ export default function LogPanel() {
                     </td>
                     <td className="px-4 py-2">
                       <span className="rounded bg-secondary px-1.5 py-0.5 text-xs">
-                        {OPERATION_LABELS[entry.operation] || entry.operation}
+                        {OPERATION_LABELS[entry.action] || entry.action}
                       </span>
                     </td>
                     <td className="px-4 py-2 text-muted-foreground">
-                      {entry.target}
+                      {entry.level}
                     </td>
-                    <td className="px-4 py-2">{entry.summary}</td>
+                    <td className="px-4 py-2">{entry.message}</td>
                   </tr>
                 ))}
               </tbody>

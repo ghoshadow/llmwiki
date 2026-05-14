@@ -324,7 +324,6 @@ try {
   await mcpServer.connect(transport);
   console.error("[llmwiki] MCP server ready on stdio");
 } catch {
-  // Stdio transport may fail if not launched as MCP (e.g., running as HTTP only)
   console.error("[llmwiki] MCP stdio not available (running HTTP-only mode)");
 }
 
@@ -395,6 +394,143 @@ app.get("/api/log", async (req, res) => {
 app.get("/api/sources", async (_req, res) => {
   const r = await executeTool("source_list", {});
   res.status(r.success ? 200 : 400).json(r);
+});
+
+// ============================================================
+// REST API v1 (matches web-ui api-client expectations)
+// ============================================================
+
+// POST /api/v1/pages — Create a page
+app.post("/api/v1/pages", async (req, res) => {
+  const body = req.body || {};
+  const r = await executeTool("wiki_write_page", {
+    slug: body.slug,
+    title: body.title,
+    content: body.content,
+    tags: body.tags,
+    status: body.status,
+    category: body.category,
+  });
+  res.status(r.success ? 200 : 400).json(r);
+});
+
+// GET /api/v1/pages — List pages (with optional status/tag filter)
+app.get("/api/v1/pages", async (req, res) => {
+  const pages = await engine.listPages();
+  const { status, tag } = req.query;
+  let filtered = pages;
+  if (status) filtered = filtered.filter((p) => p.status === status);
+  if (tag) filtered = filtered.filter((p) => p.tags.includes(tag as string));
+  res.json({ success: true, data: filtered });
+});
+
+// GET /api/v1/pages/:slug — Read a page
+app.get("/api/v1/pages/:slug", async (req, res) => {
+  const r = await executeTool("wiki_read_page", { slug: req.params.slug });
+  res.status(r.success ? 200 : 400).json(r);
+});
+
+// PATCH /api/v1/pages/:slug — Update a page
+app.patch("/api/v1/pages/:slug", async (req, res) => {
+  const existing = await engine.readPage(req.params.slug);
+  if (!existing) {
+    res.status(404).json({ success: false, error: `Page not found: ${req.params.slug}` });
+    return;
+  }
+  const body = req.body || {};
+  const updated = {
+    meta: {
+      ...existing.meta,
+      title: body.title ?? existing.meta.title,
+      tags: body.tags ?? existing.meta.tags,
+      status: body.status ?? existing.meta.status,
+      updated: new Date().toISOString(),
+    },
+    content: body.content ?? existing.content,
+    rawFrontmatter: existing.rawFrontmatter,
+  } as import("@llmwiki/shared").WikiPage;
+  await engine.writePage(updated);
+  res.json({ success: true, data: updated });
+});
+
+// DELETE /api/v1/pages/:slug
+app.delete("/api/v1/pages/:slug", async (req, res) => {
+  const r = await executeTool("wiki_delete_page", { slug: req.params.slug });
+  res.status(r.success ? 200 : 400).json(r);
+});
+
+// GET /api/v1/search
+app.get("/api/v1/search", async (req, res) => {
+  const r = await executeTool("wiki_search", { query: req.query.q, limit: Number(req.query.limit) || 20 });
+  res.status(r.success ? 200 : 400).json(r);
+});
+
+// GET /api/v1/index
+app.get("/api/v1/index", async (_req, res) => {
+  const r = await executeTool("wiki_get_index", {});
+  res.status(r.success ? 200 : 400).json(r);
+});
+
+// GET /api/v1/log
+app.get("/api/v1/log", async (req, res) => {
+  const r = await executeTool("wiki_get_log", { limit: Number(req.query.limit) || 50 });
+  res.status(r.success ? 200 : 400).json(r);
+});
+
+// GET /api/v1/stats
+app.get("/api/v1/stats", async (_req, res) => {
+  const r = await executeTool("wiki_get_stats", {});
+  res.status(r.success ? 200 : 400).json(r);
+});
+
+// GET /api/v1/pages/:slug/backlinks
+app.get("/api/v1/pages/:slug/backlinks", async (req, res) => {
+  const r = await executeTool("wiki_get_backlinks", { slug: req.params.slug });
+  res.status(r.success ? 200 : 400).json(r);
+});
+
+// GET /api/v1/sources
+app.get("/api/v1/sources", async (req, res) => {
+  const sources = await engine.listSources();
+  const { status } = req.query;
+  const filtered = status
+    ? sources.filter((s) => s.meta.status === status)
+    : sources;
+  res.json({ success: true, data: filtered });
+});
+
+// GET /api/v1/lint
+app.get("/api/v1/lint", async (_req, res) => {
+  const r = await executeTool("wiki_lint", {});
+  res.status(r.success ? 200 : 400).json(r);
+});
+
+// GET /api/v1/lint/orphans
+app.get("/api/v1/lint/orphans", async (_req, res) => {
+  const issues = await engine.lint();
+  const orphans = issues
+    .filter((i) => i.type === "orphan")
+    .map((i) => i.slug);
+  res.json({ success: true, data: orphans });
+});
+
+// GET /api/v1/lint/broken-links
+app.get("/api/v1/lint/broken-links", async (_req, res) => {
+  const issues = await engine.lint();
+  const brokenBySlug = new Map<string, string[]>();
+  for (const issue of issues) {
+    if (issue.type === "broken-link" && issue.detail) {
+      const slug = issue.slug;
+      const existing = brokenBySlug.get(slug) || [];
+      existing.push(issue.detail.target as string);
+      brokenBySlug.set(slug, existing);
+    }
+  }
+  const result = [...brokenBySlug.entries()].map(([slug, brokenLinks]) => ({
+    slug,
+    brokenLinks,
+  }));
+  res.json({ success: true, data: result });
 });
 
 app.listen(PORT, () => {

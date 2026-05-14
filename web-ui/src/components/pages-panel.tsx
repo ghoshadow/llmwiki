@@ -39,37 +39,27 @@ export default function PagesPanel() {
 
   return (
     <div className="space-y-4">
-      {/* 标题 */}
       <div className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold">Wiki 页面 (wiki/)</h3>
+          <h3 className="font-semibold">Wiki Pages (wiki/)</h3>
           <button
             onClick={fetchPages}
             disabled={loading}
             className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
           >
-            <RefreshCw className={loading ? 'animate-spin' : ''} />
-            刷新
+            <RefreshCw className={loading ? 'animate-spin' : ''} size={14} />
+            Refresh
           </button>
         </div>
 
-        {error && (
-          <p className="mt-3 text-sm text-destructive">{error}</p>
-        )}
-
-        {loading && (
-          <p className="mt-3 text-sm text-muted-foreground">加载中...</p>
-        )}
-
+        {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
+        {loading && <p className="mt-3 text-sm text-muted-foreground">Loading...</p>}
         {!loading && !error && (
-          <p className="mt-1 text-sm text-muted-foreground">
-            共 {pages.length} 个页面
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">{pages.length} pages</p>
         )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        {/* 页面列表 */}
         <div className="rounded-lg border bg-card text-card-foreground shadow-sm lg:col-span-1">
           <div className="max-h-[600px] overflow-y-auto">
             {pages.length > 0 ? (
@@ -79,7 +69,7 @@ export default function PagesPanel() {
                     key={page.slug}
                     onClick={() => handleSelectPage(page.slug)}
                     className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-left transition-colors hover:bg-accent ${
-                      selectedPage?.slug === page.slug
+                      selectedPage?.meta.slug === page.slug
                         ? 'bg-primary/10 text-primary'
                         : 'text-muted-foreground hover:text-accent-foreground'
                     }`}
@@ -91,67 +81,45 @@ export default function PagesPanel() {
                 ))}
               </div>
             ) : !loading && (
-              <p className="p-4 text-sm text-muted-foreground">暂无页面</p>
+              <p className="p-4 text-sm text-muted-foreground">No pages</p>
             )}
           </div>
         </div>
 
-        {/* 页面详情 */}
         <div className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm lg:col-span-2">
           {loadingPage ? (
-            <p className="text-sm text-muted-foreground">加载中...</p>
+            <p className="text-sm text-muted-foreground">Loading...</p>
           ) : selectedPage ? (
             <div className="space-y-3">
-              <h3 className="text-lg font-semibold">
-                {selectedPage.frontmatter.title}
-              </h3>
+              <h3 className="text-lg font-semibold">{selectedPage.meta.title}</h3>
 
               <div className="flex flex-wrap gap-2">
                 <span className="rounded bg-secondary px-2 py-0.5 text-xs">
-                  slug: {selectedPage.slug}
+                  slug: {selectedPage.meta.slug}
                 </span>
-                {selectedPage.frontmatter.tags?.map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded bg-primary/10 px-2 py-0.5 text-xs text-primary"
-                  >
+                {selectedPage.meta.tags?.map((tag) => (
+                  <span key={tag} className="rounded bg-primary/10 px-2 py-0.5 text-xs text-primary">
                     #{tag}
                   </span>
                 ))}
-                {selectedPage.frontmatter.updated && (
-                  <span className="rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
-                    更新: {new Date(selectedPage.frontmatter.updated).toLocaleString('zh-CN')}
-                  </span>
-                )}
+                <span className="rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
+                  Updated: {new Date(selectedPage.meta.updated).toLocaleString()}
+                </span>
+                <span className="rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
+                  Status: {selectedPage.meta.status}
+                </span>
               </div>
 
-              {selectedPage.frontmatter.sources &&
-                selectedPage.frontmatter.sources.length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-medium">数据源</h4>
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {selectedPage.frontmatter.sources.map((src) => (
-                        <span
-                          key={src}
-                          className="rounded bg-secondary px-1.5 py-0.5 text-xs font-mono"
-                        >
-                          {src}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
               <div>
-                <h4 className="text-sm font-medium">内容</h4>
+                <h4 className="text-sm font-medium">Content</h4>
                 <pre className="mt-1 max-h-[400px] overflow-y-auto rounded-md border bg-background p-3 text-xs font-mono whitespace-pre-wrap">
-                  {selectedPage.body || '(空)'}
+                  {selectedPage.content || '(empty)'}
                 </pre>
               </div>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              从左侧列表选择一个页面查看详情
+              Select a page from the list to view details
             </p>
           )}
         </div>

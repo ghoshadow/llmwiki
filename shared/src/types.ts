@@ -105,6 +105,8 @@ export interface SearchResult {
   relevance: number;         // 0-1
 }
 
+export type SearchKind = "text" | "tag" | "slug" | "frontmatter";
+
 // --- Source ---
 
 export interface SourceMeta {
@@ -129,6 +131,7 @@ export interface LintIssue {
   type: "broken-link" | "orphan" | "contradiction" | "missing-frontmatter" | "invalid-tag";
   slug: string;
   title: string;
+  target?: string;
   message: string;
   detail?: Record<string, unknown>;
   severity: "error" | "warning" | "info";
@@ -146,4 +149,38 @@ export interface PaginatedResponse<T> extends ApiResponse<T[]> {
   total: number;
   offset: number;
   limit: number;
+}
+
+// --- Index Tree (for web UI) ---
+
+export interface IndexNode {
+  name: string;
+  slug?: string;
+  title?: string;
+  children: IndexNode[];
+}
+
+export interface IndexTree {
+  roots: IndexNode[];
+  orphanRefs: string[];
+  missingFromIndex: string[];
+}
+
+// --- Source File (for web UI ingest panel) ---
+
+export interface SourceFile extends Source {
+  path: string;
+  size: number;
+}
+
+// --- Lint Report (for web UI lint panel) ---
+
+export interface LintReport {
+  pagesScanned: number;
+  counts: {
+    error: number;
+    warning: number;
+    info: number;
+  };
+  issues: LintIssue[];
 }
