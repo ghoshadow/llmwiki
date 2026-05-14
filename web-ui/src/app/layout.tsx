@@ -1,6 +1,8 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
+import Sidebar from '@/components/sidebar';
+import StatusBar from '@/components/status-bar';
 
 export const metadata: Metadata = {
   title: 'LLM Wiki',
@@ -9,17 +11,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="zh-CN" suppressHydrationWarning>
+    <html lang="zh-CN" className="dark" suppressHydrationWarning>
       <body className="min-h-screen bg-background font-sans antialiased">
-        <div className="flex min-h-screen">
-          {/* sidebar 占位,LLMWI-11 会实现完整组件 */}
-          <aside className="w-64 border-r bg-muted/30 p-4">
-            <h1 className="text-lg font-semibold">LLM Wiki</h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              脚手架阶段 (Phase 1)
-            </p>
-          </aside>
-          <main className="flex-1 p-6">{children}</main>
+        <div className="flex h-screen overflow-hidden">
+          <Sidebar />
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <main className="flex-1 overflow-y-auto p-6">{children}</main>
+            <StatusBar />
+          </div>
         </div>
       </body>
     </html>
