@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Search } from 'lucide-react';
-import type { SearchKind, SearchResult } from '@llmwiki/shared';
+import { Search, Bot, Wrench } from 'lucide-react';
+import type { SearchKind } from '@llmwiki/shared';
+import type { SSEChunk } from '@/lib/claude-sdk';
 import ExecutionLog from './execution-log';
 import type { ExecutionStatus } from './execution-log';
 
@@ -18,13 +19,15 @@ export default function QueryPanel() {
   const [kind, setKind] = useState<SearchKind>('text');
   const [status, setStatus] = useState<ExecutionStatus>('idle');
   const [logs, setLogs] = useState<string[]>([]);
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [aiResponse, setAiResponse] = useState('');
+  const [toolCalls, setToolCalls] = useState<string[]>([]);
 
   const handleQuery = async () => {
     if (!query.trim()) return;
     setStatus('running');
     setLogs([]);
-    setResults([]);
+    setAiResponse('');
+    setToolCalls([]);
 
     try {
       const response = await fetch('/api/query', {
@@ -48,6 +51,7 @@ export default function QueryPanel() {
 
       const decoder = new TextDecoder();
       let buffer = '';
+      let responseText = '';
 
       while (true) {
         const { done, value } = await reader.read();
@@ -58,29 +62,44 @@ export default function QueryPanel() {
         buffer = lines.pop() || '';
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.slug && data.title) {
-                setResults((prev) => [...prev, data]);
-              }
-              setLogs((prev) => [...prev, typeof data === 'string' ? data : JSON.stringify(data, null, 2)]);
-            } catch {
-              setLogs((prev) => [...prev, line.slice(6)]);
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const chunk: SSEChunk = JSON.parse(line.slice(6));
+            switch (chunk.type) {
+              case 'progress':
+                if (chunk.tool) {
+                  setToolCalls((prev) => [...prev, chunk.tool!]);
+                }
+                if (chunk.content) {
+                  responseText += chunk.content;
+                  setAiResponse(responseText);
+                }
+                setLogs((prev) => [...prev, chunk.content || `Tool: ${chunk.tool}`]);
+                break;
+              case 'result':
+                setAiResponse(chunk.content || '');
+                setLogs((prev) => [...prev, chunk.content || '']);
+                break;
+              case 'error':
+                setLogs((prev) => [...prev, `Error: ${chunk.content}`]);
+                setStatus('error');
+                return;
+              case 'done':
+                break;
             }
+          } catch {
+            setLogs((prev) => [...prev, line.slice(6)]);
           }
         }
       }
 
+      // Process remaining buffer
       if (buffer.startsWith('data: ')) {
         try {
-          const data = JSON.parse(buffer.slice(6));
-          if (data.slug && data.title) {
-            setResults((prev) => [...prev, data]);
-          }
-          setLogs((prev) => [...prev, typeof data === 'string' ? data : JSON.stringify(data, null, 2)]);
+          const chunk: SSEChunk = JSON.parse(buffer.slice(6));
+          if (chunk.type === 'result') setAiResponse(chunk.content || '');
         } catch {
-          setLogs((prev) => [...prev, buffer.slice(6)]);
+          // ignore malformed final chunk
         }
       }
 
@@ -126,26 +145,30 @@ export default function QueryPanel() {
         </div>
       </div>
 
-      {results.length > 0 && (
+      {toolCalls.length > 0 && (
         <div className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
-          <h3 className="font-semibold">Results ({results.length})</h3>
-          <div className="mt-3 space-y-2">
-            {results.map((result, i) => (
-              <div key={`${result.slug}-${i}`} className="rounded-md border bg-background p-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">{result.title}</span>
-                  <span className="text-xs text-muted-foreground">{result.slug}</span>
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    Relevance: {result.relevance.toFixed(2)}
-                  </span>
-                </div>
-                {result.snippet && (
-                  <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
-                    {result.snippet}
-                  </p>
-                )}
-              </div>
+          <h3 className="flex items-center gap-2 font-semibold text-sm">
+            <Wrench className="size-4 text-muted-foreground" />
+            Tool Calls
+          </h3>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {toolCalls.map((tool, i) => (
+              <span key={i} className="rounded bg-secondary px-2 py-0.5 text-xs font-mono">
+                {tool}
+              </span>
             ))}
+          </div>
+        </div>
+      )}
+
+      {aiResponse && (
+        <div className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
+          <h3 className="flex items-center gap-2 font-semibold">
+            <Bot className="size-4" />
+            AI Response
+          </h3>
+          <div className="mt-3 whitespace-pre-wrap text-sm leading-relaxed">
+            {aiResponse}
           </div>
         </div>
       )}

@@ -18,8 +18,8 @@ export const PATHS = {
   repoRoot: REPO_ROOT,
   wikiDir: path.join(REPO_ROOT, 'wiki'),
   rawDir: path.join(REPO_ROOT, 'raw'),
-  indexFile: path.join(REPO_ROOT, 'index.md'),
-  logFile: path.join(REPO_ROOT, 'log.md'),
+  indexFile: path.join(REPO_ROOT, 'wiki', 'index.md'),
+  logFile: path.join(REPO_ROOT, 'wiki', 'log.md'),
 } as const;
 
 /** MCP 工具返回结构 */

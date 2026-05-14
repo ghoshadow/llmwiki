@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Download, FileText, RefreshCw } from 'lucide-react';
+import { Download, RefreshCw, Wrench, FileText } from 'lucide-react';
 import { sourcesApi } from '@/lib/api-client';
 import type { Source } from '@llmwiki/shared';
+import type { SSEChunk } from '@/lib/claude-sdk';
 import ExecutionLog from './execution-log';
 import type { ExecutionStatus } from './execution-log';
 
@@ -13,6 +14,8 @@ export default function IngestPanel() {
   const [status, setStatus] = useState<ExecutionStatus>('idle');
   const [logs, setLogs] = useState<string[]>([]);
   const [loadingSources, setLoadingSources] = useState(false);
+  const [toolCalls, setToolCalls] = useState<string[]>([]);
+  const [progress, setProgress] = useState('');
 
   const fetchSources = useCallback(async () => {
     setLoadingSources(true);
@@ -29,6 +32,8 @@ export default function IngestPanel() {
     if (!selected) return;
     setStatus('running');
     setLogs([]);
+    setToolCalls([]);
+    setProgress('');
 
     try {
       const response = await fetch('/api/ingest', {
@@ -59,13 +64,31 @@ export default function IngestPanel() {
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              setLogs((prev) => [...prev, typeof data === 'string' ? data : JSON.stringify(data, null, 2)]);
-            } catch {
-              setLogs((prev) => [...prev, line.slice(6)]);
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const chunk: SSEChunk = JSON.parse(line.slice(6));
+            switch (chunk.type) {
+              case 'progress':
+                if (chunk.tool) {
+                  setToolCalls((prev) => [...prev, chunk.tool!]);
+                }
+                if (chunk.content) {
+                  setProgress((prev) => prev + chunk.content!);
+                }
+                setLogs((prev) => [...prev, chunk.content || `Tool: ${chunk.tool}`]);
+                break;
+              case 'result':
+                setLogs((prev) => [...prev, chunk.content || '']);
+                break;
+              case 'error':
+                setLogs((prev) => [...prev, `Error: ${chunk.content}`]);
+                setStatus('error');
+                return;
+              case 'done':
+                break;
             }
+          } catch {
+            setLogs((prev) => [...prev, line.slice(6)]);
           }
         }
       }
@@ -116,6 +139,34 @@ export default function IngestPanel() {
           </button>
         </div>
       </div>
+
+      {toolCalls.length > 0 && (
+        <div className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
+          <h3 className="flex items-center gap-2 font-semibold text-sm">
+            <Wrench className="size-4 text-muted-foreground" />
+            Tool Calls
+          </h3>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {toolCalls.map((tool, i) => (
+              <span key={i} className="rounded bg-secondary px-2 py-0.5 text-xs font-mono">
+                {tool}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {progress && (
+        <div className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
+          <h3 className="flex items-center gap-2 font-semibold">
+            <FileText className="size-4" />
+            AI Progress
+          </h3>
+          <div className="mt-3 whitespace-pre-wrap text-sm leading-relaxed">
+            {progress}
+          </div>
+        </div>
+      )}
 
       <ExecutionLog lines={logs} status={status} />
     </div>

@@ -8,6 +8,7 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { SDKMessage, McpStdioServerConfig, SettingSource } from "@anthropic-ai/claude-agent-sdk";
 import type { WikiPageSummary, LintIssue, SearchResult } from "@llmwiki/shared";
+import { spawn } from "node:child_process";
 
 // ============================================================
 // Types
@@ -347,7 +348,6 @@ export function getWikiToolDefinitions() {
 // ============================================================
 
 export function spawnMCPServer(config: ClaudeSessionConfig) {
-  const { spawn } = require("node:child_process");
   return spawn(config.serverCommand, config.serverArgs, {
     cwd: config.cwd,
     stdio: ["pipe", "pipe", "pipe"],

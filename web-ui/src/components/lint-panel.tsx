@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { ShieldCheck, AlertTriangle, AlertCircle, Info } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, AlertCircle, Info, Bot, Wrench } from 'lucide-react';
 import type { LintIssue } from '@llmwiki/shared';
+import { apiClient } from '@/lib/api-client';
+import type { SSEChunk } from '@/lib/claude-sdk';
 import ExecutionLog from './execution-log';
 import type { ExecutionStatus } from './execution-log';
 
@@ -30,13 +32,24 @@ export default function LintPanel() {
   const [status, setStatus] = useState<ExecutionStatus>('idle');
   const [logs, setLogs] = useState<string[]>([]);
   const [issues, setIssues] = useState<LintIssue[] | null>(null);
+  const [aiResponse, setAiResponse] = useState('');
+  const [toolCalls, setToolCalls] = useState<string[]>([]);
 
   const handleLint = async () => {
     setStatus('running');
     setLogs([]);
     setIssues(null);
+    setAiResponse('');
+    setToolCalls([]);
 
     try {
+      // Fetch structured issues from REST API in parallel
+      const lintResult = await apiClient.lint();
+      if (lintResult.ok && Array.isArray(lintResult.data)) {
+        setIssues(lintResult.data);
+      }
+
+      // Also stream AI analysis via SSE
       const response = await fetch('/api/lint', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -45,19 +58,22 @@ export default function LintPanel() {
 
       if (!response.ok) {
         setLogs([`HTTP Error: ${response.status} ${response.statusText}`]);
-        setStatus('error');
+        if (!issues) setStatus('error');
+        else setStatus('done');
         return;
       }
 
       const reader = response.body?.getReader();
       if (!reader) {
         setLogs(['Cannot read response stream']);
-        setStatus('error');
+        if (!issues) setStatus('error');
+        else setStatus('done');
         return;
       }
 
       const decoder = new TextDecoder();
       let buffer = '';
+      let responseText = '';
 
       while (true) {
         const { done, value } = await reader.read();
@@ -68,29 +84,35 @@ export default function LintPanel() {
         buffer = lines.pop() || '';
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (Array.isArray(data)) {
-                setIssues(data);
-              }
-              setLogs((prev) => [...prev, typeof data === 'string' ? data : JSON.stringify(data, null, 2)]);
-            } catch {
-              setLogs((prev) => [...prev, line.slice(6)]);
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const chunk: SSEChunk = JSON.parse(line.slice(6));
+            switch (chunk.type) {
+              case 'progress':
+                if (chunk.tool) {
+                  setToolCalls((prev) => [...prev, chunk.tool!]);
+                }
+                if (chunk.content) {
+                  responseText += chunk.content;
+                  setAiResponse(responseText);
+                }
+                setLogs((prev) => [...prev, chunk.content || `Tool: ${chunk.tool}`]);
+                break;
+              case 'result':
+                setAiResponse(chunk.content || '');
+                setLogs((prev) => [...prev, chunk.content || '']);
+                break;
+              case 'error':
+                setLogs((prev) => [...prev, `Error: ${chunk.content}`]);
+                if (!issues) setStatus('error');
+                else setStatus('done');
+                return;
+              case 'done':
+                break;
             }
+          } catch {
+            setLogs((prev) => [...prev, line.slice(6)]);
           }
-        }
-      }
-
-      if (buffer.startsWith('data: ')) {
-        try {
-          const data = JSON.parse(buffer.slice(6));
-          if (Array.isArray(data)) {
-            setIssues(data);
-          }
-          setLogs((prev) => [...prev, typeof data === 'string' ? data : JSON.stringify(data, null, 2)]);
-        } catch {
-          setLogs((prev) => [...prev, buffer.slice(6)]);
         }
       }
 
@@ -121,6 +143,22 @@ export default function LintPanel() {
           Run Check
         </button>
       </div>
+
+      {toolCalls.length > 0 && (
+        <div className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
+          <h3 className="flex items-center gap-2 font-semibold text-sm">
+            <Wrench className="size-4 text-muted-foreground" />
+            Tool Calls
+          </h3>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {toolCalls.map((tool, i) => (
+              <span key={i} className="rounded bg-secondary px-2 py-0.5 text-xs font-mono">
+                {tool}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {issues && (
         <div className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
@@ -168,7 +206,19 @@ export default function LintPanel() {
 
       {issues && issues.length === 0 && (
         <div className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
-          <p className="text-sm text-green-400">No issues found. Wiki is healthy.</p>
+          <p className="text-sm text-green-600">No issues found. Wiki is healthy.</p>
+        </div>
+      )}
+
+      {aiResponse && (
+        <div className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
+          <h3 className="flex items-center gap-2 font-semibold">
+            <Bot className="size-4" />
+            AI Analysis
+          </h3>
+          <div className="mt-3 whitespace-pre-wrap text-sm leading-relaxed">
+            {aiResponse}
+          </div>
         </div>
       )}
 
