@@ -1,0 +1,20 @@
+{
+  "name": "llmwiki",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LLM Wiki 工具链 - MCP Server + Next.js Web UI + Claude Agent SDK",
+  "workspaces": [
+    "shared",
+    "mcp-server",
+    "web-ui"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "dev": "npm run dev --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "clean": "npm run clean --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
