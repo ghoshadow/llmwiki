@@ -51,12 +51,14 @@ export async function POST(request: NextRequest) {
         })));
 
         const prompt = buildLintPrompt(body);
+        const systemPrompt = buildLintSystemPrompt();
 
         // Create Claude session
         const session = createClaudeSession({
           maxTurns: 15,
           permissionMode: "acceptEdits",
           cwd: process.cwd(),
+          systemPrompt,
           mcpServers: {
             llmwiki: {
               command: "node",

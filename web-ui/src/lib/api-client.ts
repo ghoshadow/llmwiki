@@ -8,7 +8,6 @@ import type {
   WikiPage,
   WikiPageSummary,
   WikiIndex,
-  IndexTree,
   WikiLog,
   WikiStats,
   SearchResult,
@@ -160,7 +159,6 @@ export const pagesApi = {
 
 export const indexApi = {
   get: () => apiClient.getIndex(),
-  tree: () => request<IndexTree>("/api/v1/index?tree=true"),
 };
 
 export const logApi = {

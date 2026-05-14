@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
           maxTurns: 30,
           permissionMode: "acceptEdits",
           cwd: process.cwd(),
+          systemPrompt,
           mcpServers: {
             llmwiki: {
               command: "node",

@@ -151,21 +151,6 @@ export interface PaginatedResponse<T> extends ApiResponse<T[]> {
   limit: number;
 }
 
-// --- Index Tree (for web UI) ---
-
-export interface IndexNode {
-  name: string;
-  slug?: string;
-  title?: string;
-  children: IndexNode[];
-}
-
-export interface IndexTree {
-  roots: IndexNode[];
-  orphanRefs: string[];
-  missingFromIndex: string[];
-}
-
 // --- Source File (for web UI ingest panel) ---
 
 export interface SourceFile extends Source {

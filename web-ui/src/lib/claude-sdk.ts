@@ -35,6 +35,7 @@ export interface IngestResult {
 
 export interface QueryRequest {
   query: string;
+  kind?: string;
 }
 
 export interface QueryResult {
@@ -83,6 +84,7 @@ export interface ClaudeSessionOptions {
   cwd?: string;
   mcpServers?: Record<string, McpStdioServerConfig>;
   settingSources?: SettingSource[];
+  systemPrompt?: string;
 }
 
 export interface ClaudeSession {
@@ -116,6 +118,7 @@ export function createClaudeSession(
           mcpServers: opts.mcpServers,
           cwd: opts.cwd,
           settingSources: opts.settingSources,
+          systemPrompt: opts.systemPrompt,
           resume: sessionId,
         },
       })) {
@@ -394,7 +397,13 @@ export function buildIngestSystemPrompt(): string {
 // ============================================================
 
 export function buildQueryPrompt(request: QueryRequest): string {
-  return `Answer the following question using the wiki knowledge base:\n\n${request.query}`;
+  const lines: string[] = [];
+  lines.push(`Answer the following question using the wiki knowledge base:`);
+  if (request.kind) {
+    lines.push(`(Search mode: ${request.kind})`);
+  }
+  lines.push("", request.query);
+  return lines.join("\n");
 }
 
 export function buildQuerySystemPrompt(): string {

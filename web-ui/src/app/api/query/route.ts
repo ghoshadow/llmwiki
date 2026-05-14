@@ -52,16 +52,18 @@ export async function POST(request: NextRequest) {
         // Initial progress
         controller.enqueue(encoder.encode(serializeSSE({
           type: "progress",
-          content: `Processing query: "${body.query}"`,
+          content: `Processing query: "${body.query}"${body.kind ? ` (kind: ${body.kind})` : ""}`,
         })));
 
         const prompt = buildQueryPrompt(body);
+        const systemPrompt = buildQuerySystemPrompt();
 
         // Create Claude session
         const session = createClaudeSession({
           maxTurns: 15,
           permissionMode: "acceptEdits",
           cwd: process.cwd(),
+          systemPrompt,
           mcpServers: {
             llmwiki: {
               command: "node",
