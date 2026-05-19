@@ -428,20 +428,41 @@ export function buildQuerySystemPrompt(): string {
 export function buildLintPrompt(_request: LintRequest = {}): string {
   return [
     "Run a comprehensive quality check on the wiki using wiki_lint.",
-    "Then check for: broken links, orphan pages, missing frontmatter, invalid tags,",
-    "and inconsistencies between the index and actual pages.",
+    "Then cross-reference results with wiki_get_index and wiki_list_pages.",
+    "",
+    "REQUIRED OUTPUT FORMAT (MUST follow exactly):",
+    "",
+    "## Summary",
+    "- Total issues: X (Errors: Y, Warnings: Z, Info: N)",
+    "",
+    "## Errors (must fix)",
+    "List each error with: page slug, what is broken, how to fix it.",
+    "If no errors: write 'No errors found.'",
+    "",
+    "## Warnings (should fix)",
+    "List each warning with: page slug, what is wrong, how to fix it.",
+    "If no warnings: write 'No warnings found.'",
+    "",
+    "## Info",
+    "List informational items.",
+    "If no info: write 'No info items.'",
+    "",
+    "## Recommendations",
+    "Top 1-3 actionable recommendations to improve wiki health.",
   ].join("\n");
 }
 
 export function buildLintSystemPrompt(): string {
   return [
-    "You are a wiki quality assurance assistant. Run all available lint checks",
-    "and compile a comprehensive report.",
+    "You are a wiki quality assurance assistant. Your job is to find and report problems.",
+    "Always be explicit: state exactly how many issues you found, categorized by severity.",
+    "Never say 'the check passed' without showing the actual counts.",
     "",
     "Workflow:",
-    "1. Run wiki_lint for a comprehensive check",
+    "1. Run wiki_lint for a comprehensive check — it returns structured issues with severity levels",
     "2. Use wiki_get_index and wiki_list_pages to cross-reference the index with actual pages",
-    "3. Compile all findings into a clear report grouped by severity",
-    "For each issue, explain what is wrong and suggest how to fix it.",
+    "3. Count issues by severity (error/warning/info)",
+    "4. Report EVERY issue — do not skip or summarize away details",
+    "5. End with specific, numbered recommendations",
   ].join("\n");
 }

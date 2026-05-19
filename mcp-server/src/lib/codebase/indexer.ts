@@ -71,7 +71,6 @@ function categorize(name: string): string {
 
 function moduleToSlug(name: string): string {
   return name
-    .replace(/^src\//, "")
     .replace(/\//g, "-")
     .replace(/[^a-z0-9-]/gi, "")
     .toLowerCase();

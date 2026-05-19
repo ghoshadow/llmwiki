@@ -41,31 +41,31 @@ graph TD
 
 ## Entry Point
 
-- [[root]] — 4 files, 1 symbols
+- root — 4 files, 1 symbols
 
 ## Core Logic
 
-- [[core]] — 36 files, 150 symbols
+- [[src-core]] — 36 files, 150 symbols
 
 ## Adapters
 
-- [[adapters]] — 7 files, 11 symbols
+- [[src-adapters]] — 7 files, 11 symbols
 
 ## Offload Pipeline
 
-- [[offload]] — 31 files, 128 symbols
+- [[src-offload]] — 31 files, 128 symbols
 
 ## Gateway / API
 
-- [[gateway]] — 3 files, 17 symbols
+- [[src-gateway]] — 3 files, 17 symbols
 
 ## CLI
 
-- [[cli]] — 2 files, 3 symbols
+- [[src-cli]] — 2 files, 3 symbols
 
 ## Utilities
 
-- [[utils]] — 14 files, 69 symbols
+- [[src-utils]] — 14 files, 69 symbols
 
 ## Plugin
 
@@ -73,7 +73,7 @@ graph TD
 
 ## Other
 
-- [[src]] — 1 files, 15 symbols
+- src — 1 files, 15 symbols
 
 ## Key Dependencies
 
@@ -86,11 +86,11 @@ graph TD
 | Module | Files | Symbols | Suggested Pages | Category |
 |--------|-------|---------|-----------------|----------|
 | [[hermes-plugin-memory]] | 6 | 69 | 2 | Plugin |
-| [[root]] | 4 | 1 | 2 | Entry Point |
-| [[src]] | 1 | 15 | 1 | Other |
-| [[adapters]] | 7 | 11 | 3 | Adapters |
-| [[cli]] | 2 | 3 | 1 | CLI |
-| [[core]] | 36 | 150 | 8 | Core Logic |
-| [[gateway]] | 3 | 17 | 1 | Gateway / API |
-| [[offload]] | 31 | 128 | 8 | Offload Pipeline |
-| [[utils]] | 14 | 69 | 5 | Utilities |
+| root | 4 | 1 | 2 | Entry Point |
+| src | 1 | 15 | 1 | Other |
+| [[src-adapters]] | 7 | 11 | 3 | Adapters |
+| [[src-cli]] | 2 | 3 | 1 | CLI |
+| [[src-core]] | 36 | 150 | 8 | Core Logic |
+| [[src-gateway]] | 3 | 17 | 1 | Gateway / API |
+| [[src-offload]] | 31 | 128 | 8 | Offload Pipeline |
+| [[src-utils]] | 14 | 69 | 5 | Utilities |

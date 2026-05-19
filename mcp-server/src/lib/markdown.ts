@@ -54,10 +54,19 @@ export function extractWikilinks(content: string): Wikilink[] {
   const links: Wikilink[] = [];
   const cleaned = content.replace(HTML_COMMENT_RE, "");
   const lines = cleaned.split("\n");
+  let inCodeBlock = false;
   for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // Toggle code fence state
+    if (/^\s*`{3,}/.test(line)) {
+      inCodeBlock = !inCodeBlock;
+      continue;
+    }
+    if (inCodeBlock) continue;
+
     let match: RegExpExecArray | null;
     const re = new RegExp(WIKILINK_RE.source, "g");
-    while ((match = re.exec(lines[i])) !== null) {
+    while ((match = re.exec(line)) !== null) {
       links.push({
         target: match[1].trim(),
         alias: match[2]?.trim(),
