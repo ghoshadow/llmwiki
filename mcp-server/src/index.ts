@@ -16,6 +16,9 @@ import express from "express";
 import cors from "cors";
 import { WikiEngine } from "./lib/engine.js";
 import { PATHS } from "./types.js";
+import { scanCodebase } from "./lib/codebase/scanner.js";
+import { extractModule } from "./lib/codebase/extractor.js";
+import { buildCodebaseIndex } from "./lib/codebase/indexer.js";
 
 // ============================================================
 // Engine
@@ -189,6 +192,86 @@ const TOOLS = [
       properties: {},
     },
   },
+  {
+    name: "codebase_scan",
+    description:
+      "Scan a codebase directory and produce a structured extraction plan. " +
+      "Identifies module boundaries, exports, dependencies, and suggests how " +
+      "many wiki pages to create per module. Use this FIRST before extracting " +
+      "individual modules.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        root: {
+          type: "string",
+          description: "Absolute path to the codebase root directory",
+        },
+        ignore: {
+          type: "array",
+          items: { type: "string" },
+          description: "Additional directories/files to ignore (node_modules, .git, dist already ignored)",
+        },
+        includeExts: {
+          type: "array",
+          items: { type: "string" },
+          description: "File extensions to include (default: .ts, .tsx, .js, .py, .go, .rs, etc.)",
+        },
+      },
+      required: ["root"],
+    },
+  },
+  {
+    name: "codebase_extract_module",
+    description:
+      "Deep-read a module directory and generate a structured Markdown knowledge page. " +
+      "Extracts JSDoc, type signatures, exported API, dependencies, and code snippets. " +
+      "The generated markdown is ready to be saved as a wiki page via wiki_write_page.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        root: {
+          type: "string",
+          description: "Absolute path to the codebase root directory",
+        },
+        modulePath: {
+          type: "string",
+          description: "Relative path to the module (e.g. 'src/core' or 'src/core/tdai-core.ts')",
+        },
+        depth: {
+          type: "string",
+          enum: ["summary", "detailed"],
+          description: "Extraction depth: 'summary' for API overview only, 'detailed' includes code snippets (default: 'detailed')",
+        },
+        includeCode: {
+          type: "boolean",
+          description: "Whether to include code snippets in detailed mode (default: true)",
+        },
+        files: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional: specific file paths (relative to root) to extract. Use the file list from codebase_scan result to respect module boundaries. When provided, only these files are processed instead of recursively walking the modulePath.",
+        },
+      },
+      required: ["root", "modulePath"],
+    },
+  },
+  {
+    name: "codebase_index",
+    description:
+      "Build an architecture overview index from a completed scan result. " +
+      "Generates a Mermaid module dependency graph, categorizes modules, and " +
+      "produces a [[wikilinks]]-linked index page ready for wiki_write_page.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        root: {
+          type: "string",
+          description: "Same root path used in codebase_scan",
+        },
+      },
+      required: ["root"],
+    },
+  },
 ];
 
 // ============================================================
@@ -288,6 +371,30 @@ async function executeTool(
     case "wiki_rebuild_search": {
       await engine.rebuildSearchIndex();
       return { success: true, data: "Search index rebuilt" };
+    }
+    case "codebase_scan": {
+      const opts: Record<string, unknown> = {};
+      if (input.ignore) opts.ignore = input.ignore;
+      if (input.includeExts) opts.includeExts = input.includeExts;
+      const result = await scanCodebase(input.root as string, opts);
+      return { success: true, data: result };
+    }
+    case "codebase_extract_module": {
+      const result = await extractModule(
+        input.root as string,
+        input.modulePath as string,
+        {
+          depth: (input.depth as "summary" | "detailed") || "detailed",
+          includeCode: input.includeCode !== false,
+          files: input.files as string[] | undefined,
+        },
+      );
+      return { success: true, data: result };
+    }
+    case "codebase_index": {
+      const scanResult = await scanCodebase(input.root as string);
+      const indexResult = await buildCodebaseIndex(scanResult);
+      return { success: true, data: indexResult };
     }
     default:
       return { success: false, error: `Unknown tool: ${name}` };
@@ -531,6 +638,24 @@ app.get("/api/v1/lint/broken-links", async (_req, res) => {
     brokenLinks,
   }));
   res.json({ success: true, data: result });
+});
+
+// POST /api/v1/codebase/scan
+app.post("/api/v1/codebase/scan", async (req, res) => {
+  const r = await executeTool("codebase_scan", req.body || {});
+  res.status(r.success ? 200 : 400).json(r);
+});
+
+// POST /api/v1/codebase/extract
+app.post("/api/v1/codebase/extract", async (req, res) => {
+  const r = await executeTool("codebase_extract_module", req.body || {});
+  res.status(r.success ? 200 : 400).json(r);
+});
+
+// POST /api/v1/codebase/index
+app.post("/api/v1/codebase/index", async (req, res) => {
+  const r = await executeTool("codebase_index", req.body || {});
+  res.status(r.success ? 200 : 400).json(r);
 });
 
 app.listen(PORT, () => {

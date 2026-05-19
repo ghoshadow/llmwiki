@@ -88,9 +88,9 @@ export default function IndexPanel() {
                         <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{entry.slug}</td>
                         <td className="px-4 py-2">
                           <span className={`rounded px-2 py-0.5 text-xs ${
-                            entry.status === 'published' ? 'bg-green-100 text-green-700' :
-                            entry.status === 'draft' ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-gray-100 text-gray-600'
+                            entry.status === 'published' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-100' :
+                            entry.status === 'draft' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-100' :
+                            'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
                           }`}>
                             {entry.status}
                           </span>

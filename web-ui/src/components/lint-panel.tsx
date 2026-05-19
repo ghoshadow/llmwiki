@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ShieldCheck, AlertTriangle, AlertCircle, Info, Bot, Wrench } from 'lucide-react';
 import type { LintIssue } from '@llmwiki/shared';
 import { apiClient } from '@/lib/api-client';
-import type { SSEChunk } from '@/lib/claude-sdk';
 import ExecutionLog from './execution-log';
 import type { ExecutionStatus } from './execution-log';
+import { lintStore } from '@/lib/lint-store';
 
 const SEVERITY_ICON: Record<string, React.ReactNode> = {
   error: <AlertCircle className="size-4 text-destructive" />,
@@ -29,98 +29,30 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 export default function LintPanel() {
-  const [status, setStatus] = useState<ExecutionStatus>('idle');
-  const [logs, setLogs] = useState<string[]>([]);
-  const [issues, setIssues] = useState<LintIssue[] | null>(null);
-  const [aiResponse, setAiResponse] = useState('');
-  const [toolCalls, setToolCalls] = useState<string[]>([]);
+  const [status, setStatus] = useState<ExecutionStatus>(lintStore.getState().status);
+  const [logs, setLogs] = useState<string[]>(lintStore.getState().logs);
+  const [issues, setIssues] = useState<LintIssue[] | null>(lintStore.getState().issues);
+  const [aiResponse, setAiResponse] = useState(lintStore.getState().aiResponse);
+  const [toolCalls, setToolCalls] = useState<string[]>(lintStore.getState().toolCalls);
 
-  const handleLint = async () => {
-    setStatus('running');
-    setLogs([]);
-    setIssues(null);
-    setAiResponse('');
-    setToolCalls([]);
+  // Subscribe to persistent lint state — keeps running across tab switches
+  useEffect(() => {
+    const unsub = lintStore.subscribe((s) => {
+      setStatus(s.status);
+      setLogs(s.logs);
+      setIssues(s.issues);
+      setAiResponse(s.aiResponse);
+      setToolCalls(s.toolCalls);
+    });
+    return unsub;
+  }, []);
 
-    try {
-      // Fetch structured issues from REST API in parallel
-      const lintResult = await apiClient.lint();
-      if (lintResult.ok && Array.isArray(lintResult.data)) {
-        setIssues(lintResult.data);
-      }
+  const handleLint = () => {
+    lintStore.run(apiClient);
+  };
 
-      // Also stream AI analysis via SSE
-      const response = await fetch('/api/lint', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-
-      if (!response.ok) {
-        setLogs([`HTTP Error: ${response.status} ${response.statusText}`]);
-        if (!issues) setStatus('error');
-        else setStatus('done');
-        return;
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        setLogs(['Cannot read response stream']);
-        if (!issues) setStatus('error');
-        else setStatus('done');
-        return;
-      }
-
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let responseText = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          try {
-            const chunk: SSEChunk = JSON.parse(line.slice(6));
-            switch (chunk.type) {
-              case 'progress':
-                if (chunk.tool) {
-                  setToolCalls((prev) => [...prev, chunk.tool!]);
-                }
-                if (chunk.content) {
-                  responseText += chunk.content;
-                  setAiResponse(responseText);
-                }
-                setLogs((prev) => [...prev, chunk.content || `Tool: ${chunk.tool}`]);
-                break;
-              case 'result':
-                setAiResponse(chunk.content || '');
-                setLogs((prev) => [...prev, chunk.content || '']);
-                break;
-              case 'error':
-                setLogs((prev) => [...prev, `Error: ${chunk.content}`]);
-                if (!issues) setStatus('error');
-                else setStatus('done');
-                return;
-              case 'done':
-                break;
-            }
-          } catch {
-            setLogs((prev) => [...prev, line.slice(6)]);
-          }
-        }
-      }
-
-      setStatus('done');
-    } catch (err) {
-      setLogs((prev) => [...prev, `Error: ${err instanceof Error ? err.message : 'Network error'}`]);
-      setStatus('error');
-    }
+  const handleCancel = () => {
+    lintStore.abort();
   };
 
   const errorCount = issues?.filter((i) => i.severity === 'error').length ?? 0;
@@ -134,14 +66,24 @@ export default function LintPanel() {
         <p className="mt-1 text-sm text-muted-foreground">
           Scan wiki for broken links, orphan pages, index inconsistencies
         </p>
-        <button
-          onClick={handleLint}
-          disabled={status === 'running'}
-          className="mt-4 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <ShieldCheck className="size-4" />
-          Run Check
-        </button>
+        <div className="mt-4 flex gap-2">
+          <button
+            onClick={handleLint}
+            disabled={status === 'running'}
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ShieldCheck className="size-4" />
+            Run Check
+          </button>
+          {status === 'running' && (
+            <button
+              onClick={handleCancel}
+              className="inline-flex items-center gap-2 rounded-md bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
       </div>
 
       {toolCalls.length > 0 && (
@@ -206,7 +148,7 @@ export default function LintPanel() {
 
       {issues && issues.length === 0 && (
         <div className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
-          <p className="text-sm text-green-600">No issues found. Wiki is healthy.</p>
+          <p className="text-sm text-green-600 dark:text-green-400">No issues found. Wiki is healthy.</p>
         </div>
       )}
 
